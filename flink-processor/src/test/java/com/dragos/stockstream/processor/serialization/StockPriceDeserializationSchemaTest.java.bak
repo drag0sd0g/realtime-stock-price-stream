@@ -1,0 +1,197 @@
+package com.dragos.stockstream.processor.serialization;
+
+import com.dragos.stockstream.processor.model.StockPrice;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.apache.flink.api.common.serialization.DeserializationSchema;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.util.Collector;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.*;
+
+/**
+ * Tests for StockPriceDeserializationSchema.
+ */
+class StockPriceDeserializationSchemaTest {
+
+    private StockPriceDeserializationSchema schema;
+    private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        schema = new StockPriceDeserializationSchema();
+        schema.open(mock(DeserializationSchema.InitializationContext.class));
+        
+        objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+    }
+
+    @Test
+    void deserialize_successfullyDeserializesValidJSON() throws Exception {
+        // Given
+        // Create JSON with ISO timestamp format
+        String json = "{\"symbol\":\"AAPL\",\"price\":180.5,\"timestamp\":\"2024-01-15T10:30:00Z\",\"change\":0.5,\"changePercent\":0.27}";
+        byte[] jsonBytes = json.getBytes();
+        ConsumerRecord<byte[], byte[]> record = new ConsumerRecord<>("topic", 0, 0L, null, jsonBytes);
+        
+        TestCollector collector = new TestCollector();
+
+        // When
+        schema.deserialize(record, collector);
+
+        // Then
+        assertThat(collector.collected).hasSize(1);
+        StockPrice result = collector.collected.get(0);
+        assertThat(result.getSymbol()).isEqualTo("AAPL");
+        assertThat(result.getPrice()).isEqualTo(180.5);
+        assertThat(result.getTimestamp()).isNotNull();
+    }
+
+    @Test
+    void deserialize_handlesNullValue() throws Exception {
+        // Given
+        ConsumerRecord<byte[], byte[]> record = new ConsumerRecord<>("topic", 0, 0L, null, null);
+        TestCollector collector = new TestCollector();
+
+        // When
+        schema.deserialize(record, collector);
+
+        // Then - no exception should be thrown, and nothing should be collected
+        assertThat(collector.collected).isEmpty();
+    }
+
+    @Test
+    void deserialize_handlesMalformedJSON() throws Exception {
+        // Given
+        byte[] malformedJson = "{\"symbol\":\"AAPL\", invalid}".getBytes();
+        ConsumerRecord<byte[], byte[]> record = new ConsumerRecord<>("topic", 0, 0L, null, malformedJson);
+        TestCollector collector = new TestCollector();
+
+        // When
+        schema.deserialize(record, collector);
+
+        // Then - should handle gracefully without throwing exception
+        assertThat(collector.collected).isEmpty();
+    }
+
+    @Test
+    void deserialize_handlesEmptyInput() throws Exception {
+        // Given
+        byte[] emptyBytes = new byte[0];
+        ConsumerRecord<byte[], byte[]> record = new ConsumerRecord<>("topic", 0, 0L, null, emptyBytes);
+        TestCollector collector = new TestCollector();
+
+        // When
+        schema.deserialize(record, collector);
+
+        // Then
+        assertThat(collector.collected).isEmpty();
+    }
+
+    @Test
+    void deserialize_extractsTimestampForEventTime() throws Exception {
+        // Given
+        String json = "{\"symbol\":\"MSFT\",\"price\":370.0,\"timestamp\":\"2024-01-15T10:30:00Z\",\"change\":1.5,\"changePercent\":0.41}";
+        byte[] jsonBytes = json.getBytes();
+        ConsumerRecord<byte[], byte[]> record = new ConsumerRecord<>("topic", 0, 0L, null, jsonBytes);
+        TestCollector collector = new TestCollector();
+
+        // When
+        schema.deserialize(record, collector);
+
+        // Then
+        assertThat(collector.collected).hasSize(1);
+        StockPrice result = collector.collected.get(0);
+        assertThat(result.getTimestamp()).isNotNull();
+        assertThat(result.getTimestamp()).isEqualTo(Instant.parse("2024-01-15T10:30:00Z"));
+    }
+
+    @Test
+    void deserialize_properlyDeserializesAllFields() throws Exception {
+        // Given
+        String json = "{\"symbol\":\"GOOGL\",\"price\":140.25,\"timestamp\":\"2024-01-15T10:30:00Z\",\"change\":-2.5,\"changePercent\":-1.75}";
+        byte[] jsonBytes = json.getBytes();
+        ConsumerRecord<byte[], byte[]> record = new ConsumerRecord<>("topic", 0, 0L, null, jsonBytes);
+        TestCollector collector = new TestCollector();
+
+        // When
+        schema.deserialize(record, collector);
+
+        // Then
+        assertThat(collector.collected).hasSize(1);
+        StockPrice result = collector.collected.get(0);
+        assertThat(result.getSymbol()).isEqualTo("GOOGL");
+        assertThat(result.getPrice()).isEqualTo(140.25);
+        assertThat(result.getChange()).isEqualTo(-2.5);
+        assertThat(result.getChangePercent()).isEqualTo(-1.75);
+        assertThat(result.getTimestamp()).isEqualTo(Instant.parse("2024-01-15T10:30:00Z"));
+    }
+
+    @Test
+    void getProducedType_returnsCorrectTypeInformation() {
+        // When
+        TypeInformation<StockPrice> typeInfo = schema.getProducedType();
+
+        // Then
+        assertThat(typeInfo).isNotNull();
+        assertThat(typeInfo.getTypeClass()).isEqualTo(StockPrice.class);
+    }
+
+    @Test
+    void deserialize_handlesMultipleRecords() throws Exception {
+        // Given
+        TestCollector collector = new TestCollector();
+        
+        for (int i = 0; i < 5; i++) {
+            String json = String.format("{\"symbol\":\"STOCK%d\",\"price\":%f,\"timestamp\":\"2024-01-15T10:30:00Z\",\"change\":0.5,\"changePercent\":0.27}", 
+                i, 100.0 + i);
+            byte[] jsonBytes = json.getBytes();
+            ConsumerRecord<byte[], byte[]> record = new ConsumerRecord<>("topic", 0, (long) i, null, jsonBytes);
+            
+            // When
+            schema.deserialize(record, collector);
+        }
+
+        // Then
+        assertThat(collector.collected).hasSize(5);
+        for (int i = 0; i < 5; i++) {
+            assertThat(collector.collected.get(i).getSymbol()).isEqualTo("STOCK" + i);
+            assertThat(collector.collected.get(i).getPrice()).isEqualTo(100.0 + i);
+        }
+    }
+
+    private StockPrice createStockPrice(String symbol, Double price) {
+        return StockPrice.builder()
+                .symbol(symbol)
+                .price(price)
+                .timestamp(Instant.now())
+                .change(0.5)
+                .changePercent(0.27)
+                .build();
+    }
+
+    /**
+     * Test collector implementation for capturing deserialized values.
+     */
+    private static class TestCollector implements Collector<StockPrice> {
+        public final List<StockPrice> collected = new ArrayList<>();
+
+        @Override
+        public void collect(StockPrice record) {
+            collected.add(record);
+        }
+
+        @Override
+        public void close() {
+        }
+    }
+}

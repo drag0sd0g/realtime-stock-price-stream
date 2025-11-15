@@ -1,20 +1,19 @@
 import React from "react";
 import StockCard from "./StockCard";
+import useStockStream from "../hooks/useStockStream";
 
-// Temporary: placeholder data until stream is hooked up
-const dummyStocks = Array.from({ length: 50 }, (_, i) => ({
-  symbol: `TECH${i + 1}`,
-  price: 100 + i,
-  change: 0,
-  lastUpdate: new Date().toISOString(),
-}));
+const StockGrid: React.FC = () => {
+  const { stocks } = useStockStream();
 
-const StockGrid: React.FC = () => (
-  <div className="stock-grid">
-    {dummyStocks.map((stock) => (
-      <StockCard key={stock.symbol} stock={stock} />
-    ))}
-  </div>
-);
+  return (
+    <div className="stock-grid">
+      {stocks.length ? (
+        stocks.map((stock) => <StockCard key={stock.symbol} stock={stock} />)
+      ) : (
+        <div className="loading">Loading stocks...</div>
+      )}
+    </div>
+  );
+};
 
 export default StockGrid;

@@ -1,7 +1,21 @@
 import React from "react";
-const ConnectionStatus: React.FC = () => (
-  <div className="connection-status connection-status--disconnected" title="Disconnected">
-    ●
-  </div>
-);
+import useStockStream from "../hooks/useStockStream";
+
+const statusMap = {
+  connected: { color: "connection-status--connected", text: "Live" },
+  disconnected: { color: "connection-status--disconnected", text: "Offline" },
+  reconnecting: { color: "connection-status--reconnecting", text: "Reconnecting" },
+};
+
+const ConnectionStatus: React.FC = () => {
+  const { connection } = useStockStream();
+  const { color, text } = statusMap[connection] || statusMap.disconnected;
+
+  return (
+    <div className={`connection-status ${color}`} title={text}>
+      ● {text}
+    </div>
+  );
+};
+
 export default ConnectionStatus;

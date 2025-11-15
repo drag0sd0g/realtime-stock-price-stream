@@ -41,3 +41,24 @@ Use the following command:
 ```
  docker-compose up
 ```
+
+## Running the Mock Generator
+
+1. Start Kafka and Flink:
+   ```bash
+   docker-compose up -d
+   ```
+
+2. Build and run the mock generator:
+   ```bash
+   cd mock-generator
+   mvn clean install
+   mvn spring-boot:run
+   ```
+
+3. The generator will start publishing stock prices to Kafka topic `stock-prices` every 500ms
+
+The mock generator produces realistic stock price data for 50 top tech companies including AAPL, MSFT, GOOGL, AMZN, NVDA, and more. Each stock has:
+- Different volatility levels based on market cap (2% for large caps, 3% for mid caps, 5% for smaller caps)
+- Random walk price movement with mean reversion
+- Realistic base prices and price changes

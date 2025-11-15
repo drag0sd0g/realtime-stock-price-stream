@@ -16,6 +16,7 @@
     <modules>
         <module>mock-generator</module>
         <module>flink-processor</module>
+        <module>backend-api</module>
     </modules>
 
     <properties>

@@ -1,0 +1,24 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: backend-api
+  
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      topic: stock-prices-aggregated
+      group-id: backend-api-consumer-group
+      auto-offset-reset: latest
+      enable-auto-commit: true
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+
+logging:
+  level:
+    com.dragos.stockstream.api: INFO
+    org.springframework.kafka: WARN
+    org.apache.kafka: WARN

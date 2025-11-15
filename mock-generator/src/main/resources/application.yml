@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: mock-generator
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+server:
+  port: 8082
+
+logging:
+  level:
+    com.dragos.stockstream: INFO
+    org.apache.kafka: WARN
+    org.springframework.kafka: WARN

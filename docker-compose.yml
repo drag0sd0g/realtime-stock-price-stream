@@ -32,7 +32,7 @@ services:
 
   # Flink JobManager
   flink-jobmanager:
-    image: flink:1.19.1
+    image: flink:1.18.0-java17
     container_name: flink-jobmanager
     ports:
       - "8081:8081"
@@ -46,7 +46,7 @@ services:
 
   # Flink TaskManager
   flink-taskmanager:
-    image: flink:1.19.1
+    image: flink:1.18.0-java17
     container_name: flink-taskmanager
     depends_on:
       - flink-jobmanager

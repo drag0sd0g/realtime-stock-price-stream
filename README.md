@@ -285,6 +285,59 @@ mvn clean install
 mvn test
 ```
 
+## 🧪 Testing
+
+This project includes a comprehensive test suite covering unit tests, integration tests, and end-to-end scenarios.
+
+### Run All Tests
+
+```bash
+mvn test
+```
+
+### Run Tests for Specific Module
+
+```bash
+# Mock Generator tests
+cd mock-generator
+mvn test
+
+# Flink Processor tests
+cd flink-processor
+mvn test
+
+# Backend API tests
+cd backend-api
+mvn test
+```
+
+### Generate Coverage Report
+
+```bash
+mvn jacoco:report
+# Open target/site/jacoco/index.html in browser
+```
+
+### Test Coverage Goals
+
+- **Unit Tests**: 80%+ coverage
+- **Integration Tests**: Cover all critical paths
+- **End-to-End Tests**: Complete pipeline validation
+
+### Test Structure
+
+- **Mock Generator Tests**: Test data generation, Kafka production, and scheduling
+- **Flink Processor Tests**: Test aggregation functions, serialization/deserialization
+- **Backend API Tests**: Test SSE streaming, Kafka consumption, and REST endpoints
+
+### CI/CD Pipeline
+
+Tests are automatically run on every push and pull request via GitHub Actions. The pipeline includes:
+- Building all modules
+- Running all tests
+- Generating coverage reports
+- Publishing test results
+
 ### Clean Docker Resources
 
 ```bash

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Kafka in KRaft mode (no Zookeeper needed!)
   kafka:
@@ -33,39 +31,30 @@ services:
 
   # Flink JobManager
   flink-jobmanager:
-    image: flink:1.19.1-java21
+    image: flink:1.19.1
     container_name: flink-jobmanager
     ports:
       - "8081:8081"
     command: jobmanager
     environment:
-      - FLINK_PROPERTIES=jobmanager.rpc.address=flink-jobmanager
-    volumes:
-      - ./flink-processor/target:/opt/flink/usrlib
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        parallelism.default: 1
 
   # Flink TaskManager
   flink-taskmanager:
-    image: flink:1.19.1-java21
+    image: flink:1.19.1
     container_name: flink-taskmanager
     depends_on:
       - flink-jobmanager
     command: taskmanager
     environment:
-      - FLINK_PROPERTIES=jobmanager.rpc.address=flink-jobmanager
-    volumes:
-      - ./flink-processor/target:/opt/flink/usrlib
-
-  # Kafka UI (optional but very helpful for debugging)
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: kafka-ui
-    ports:
-      - "8080:8080"
-    environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
-    depends_on:
-      - kafka
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 2
 
 volumes:
   kafka-data:

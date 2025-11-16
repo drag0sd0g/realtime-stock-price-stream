@@ -1,3 +1,5 @@
+[日本語で読む (Japanese)](README.ja.md)
+
 # 📈 Real-Time Stock Price Streaming Platform
 
 A modern, production-grade real-time data streaming platform combining **Apache Kafka**, **Apache Flink**, **Spring Boot (SSE API)**, and a live **React** dashboard. This project demonstrates an end-to-end streaming architecture: from simulated (or real) stock market data, through tumbling window aggregation, to instant UI visualization.

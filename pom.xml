@@ -15,7 +15,7 @@
 
     <scm>
         <connection>scm:git:https://github.com/drag0sd0g/realtime-stock-price-stream.git</connection>
-        <developerConnection>scm:git:git@github.com:drag0sd0g/realtime-stock-price-stream.git</developerConnection>
+        <developerConnection>scm:git:https://github.com/drag0sd0g/realtime-stock-price-stream.git</developerConnection>
         <url>https://github.com/drag0sd0g/realtime-stock-price-stream</url>
         <tag>HEAD</tag>
     </scm>

@@ -75,3 +75,6 @@ Thumbs.db
 # Kafka data
 kafka-data/
 zookeeper-data/
+
+# Others
+*.pid

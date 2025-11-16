@@ -1,0 +1,52 @@
+name: Auto Increment Tag
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Fetch all tags
+        run: git fetch --tags
+
+      - name: Get Latest Tag
+        id: get_latest_tag
+        run: |
+          git tag --list | grep '^v[0-9]*\\.[0-9]*\\.[0-9]*$' | sort -V | tail -1 || echo "v0.0.0"
+
+      - name: Increment Tag
+        id: increment_tag
+        run: |
+          latestTag=$(git tag --list | grep '^v[0-9]*\\.[0-9]*\\.[0-9]*$' | sort -V | tail -1)
+          if [ -z "$latestTag" ]; then
+            newTag="v0.0.1"
+          else
+            IFS='.' read -r -a parts <<< "${latestTag#v}"
+            major="${parts[0]}"
+            minor="${parts[1]}"
+            patch="${parts[2]}"
+            patch=$((patch+1))
+            newTag="v$major.$minor.$patch"
+          fi
+          echo "newTag=$newTag" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Create Tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git tag ${{ steps.increment_tag.outputs.newTag }}
+          git push origin ${{ steps.increment_tag.outputs.newTag }}

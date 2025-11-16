@@ -7,6 +7,7 @@
 #   ./dev.sh up     # Build and start all components + infra
 #   ./dev.sh down   # Stop all components and dependent infra
 #
+# Requirements: docker, docker-compose, Java 21+, Maven, Node.js 18+, nc, lsof
 ###############################################################################
 
 API_DIR="backend-api"
@@ -71,14 +72,25 @@ start_frontend() {
 
 submit_flink_job() {
   echo "🔍 Locating Flink fat JAR..."
-  FLINK_JAR=$(ls "$FLINK_PROC_DIR"/target/*-shaded.jar 2>/dev/null | head -n 1)
+  FLINK_JAR=$(ls "$FLINK_PROC_DIR"/target/*-jar-with-dependencies.jar 2>/dev/null | head -n 1)
   if [ ! -f "$FLINK_JAR" ]; then
-    echo "❌ No Flink fat jar found! Have you built flink-processor?"
-    return
+    echo "❌ No Flink fat jar found! Have you built flink-processor with dependencies?"
+    down
+    exit 1
   fi
-  echo "🚀 Submitting Flink job to cluster: $FLINK_JAR"
-  docker exec -u root -i $(docker ps --filter "name=flink-jobmanager" --format "{{.Names}}") \
-    flink run -d "$FLINK_JAR"
+  FLINK_JAR_NAME=$(basename "$FLINK_JAR")
+  echo "📁 Ensuring /opt/flink/usrlib exists in JobManager..."
+  docker exec flink-jobmanager mkdir -p /opt/flink/usrlib || { echo "❌ Could not create usrlib dir!"; down; exit 1; }
+  echo "🚚 Copying fat JAR into flink-jobmanager container..."
+  docker cp "$FLINK_JAR" flink-jobmanager:/opt/flink/usrlib/"$FLINK_JAR_NAME" || { echo "❌ JAR copy failed!"; down; exit 1; }
+  echo "🚀 Submitting Flink job to cluster: $FLINK_JAR_NAME"
+  # IMPORTANT: Use correct Kafka bootstrap server for Docker network!
+  docker exec -e KAFKA_BOOTSTRAP_SERVERS=kafka:29092 -i flink-jobmanager flink run /opt/flink/usrlib/"$FLINK_JAR_NAME"
+  if [ $? -ne 0 ]; then
+    echo "❌ Flink job submission failed!"
+    down
+    exit 1
+  fi
   echo "✅ Flink job submitted."
 }
 

@@ -13,6 +13,13 @@
     <name>Real-time Stock Price Streaming System</name>
     <description>Parent POM for real-time stock price streaming system</description>
 
+    <scm>
+        <connection>scm:git:https://github.com/drag0sd0g/realtime-stock-price-stream.git</connection>
+        <developerConnection>scm:git:git@github.com:drag0sd0g/realtime-stock-price-stream.git</developerConnection>
+        <url>https://github.com/drag0sd0g/realtime-stock-price-stream</url>
+        <tag>HEAD</tag>
+    </scm>
+
     <modules>
         <module>mock-generator</module>
         <module>flink-processor</module>

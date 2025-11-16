@@ -59,6 +59,14 @@ A modern, production-grade real-time data streaming platform combining **Apache 
 
 ---
 
+## 🖥️ Demo
+
+<p align="center">
+  <img src="./Demo.gif" alt="Realtime Dashboard Demo" width="700"/>
+</p>
+
+---
+
 ## 📦 Tech Stack
 
 ### Infrastructure

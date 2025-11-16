@@ -6,6 +6,7 @@
         <groupId>com.dragos.stockstream</groupId>
         <artifactId>realtime-stock-price-stream</artifactId>
         <version>1.0.1-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>flink-processor</artifactId>

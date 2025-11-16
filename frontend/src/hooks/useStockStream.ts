@@ -63,12 +63,24 @@ export default function useStockStream() {
         reconnectAttempt = 0;
       };
 
-      es.onmessage = (event) => {
+      // Handler for named SSE events from backend
+      es.addEventListener("stock-update", (event) => {
         try {
-          const stock: StockAggregate = JSON.parse(event.data);
+          const stock: StockAggregate = JSON.parse((event as MessageEvent).data);
           dispatch({ type: "update", stock });
-        } catch (e) { /* ignore parse errors */ }
-      };
+        } catch (e) {
+          // Optionally log parse errors
+          // console.error("Parse error on stock-update SSE", e);
+        }
+      });
+
+      // Optionally, handler for generic messages (if backend sends those)
+      // es.onmessage = (event) => {
+      //   try {
+      //     const stock: StockAggregate = JSON.parse(event.data);
+      //     dispatch({ type: "update", stock });
+      //   } catch (e) { }
+      // };
 
       es.onerror = () => {
         dispatch({ type: "disconnected", error: "Lost connection" });
@@ -92,4 +104,23 @@ export default function useStockStream() {
     connection: state.connection,
     error: state.error,
   };
+}
+
+// (Optional) helper for alternate EventSource, not needed by default usage
+export function createStockEventSource(onMessage: (data: any) => void, onError?: (err: any) => void) {
+  const es = new EventSource("/api/stocks/stream");
+  es.addEventListener("stock-update", (event) => onMessage(JSON.parse((event as MessageEvent).data)));
+  es.onerror = (err) => {
+    if (onError) onError(err);
+    es.close();
+  };
+  return es;
+}
+
+export function formatPrice(price: number): string {
+  return "$" + price.toFixed(2);
+}
+
+export function formatPercent(change: number): string {
+  return (change > 0 ? "+" : "") + (change * 100).toFixed(2) + "%";
 }

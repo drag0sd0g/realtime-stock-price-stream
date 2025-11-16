@@ -1,9 +1,11 @@
 name: Release
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["Build and Test (Node + Java)"]  # This must match 'name:' in ci.yml
+    branches: [main]
+    types:
+      - completed
 
 permissions:
   contents: write
@@ -11,6 +13,7 @@ permissions:
 
 jobs:
   release:
+    name: Build, Package & Publish Artifacts
     runs-on: ubuntu-latest
 
     env:

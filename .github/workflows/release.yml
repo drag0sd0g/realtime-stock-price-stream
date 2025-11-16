@@ -13,79 +13,111 @@ jobs:
   release:
     runs-on: ubuntu-latest
 
+    env:
+      # Make Maven release plugin non-interactive:
+      GITHUB_ACTOR: ${{ github.actor }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch all history for proper versioning
+          fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up JDK 21
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
 
-      - name: Configure Git
+      - name: Set up Maven settings for CI release
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p $HOME/.m2
+          cat > $HOME/.m2/settings.xml <<-EOF
+          <settings>
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${{ github.actor }}</username>
+                <password>${{ secrets.GITHUB_TOKEN }}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
 
-      - name: Get current version
-        id: version
+      - name: Configure Git for CI Releases
         run: |
-          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Current version: $VERSION"
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
 
-      - name: Build and test
-        run: mvn clean verify
-
-      - name: Prepare and perform release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run Maven Release (prepare and perform)
         run: |
-          mvn --batch-mode release:prepare release:perform -DreleaseVersion=${{ steps.version.outputs.version }} -Dusername=github-actions[bot] -Dpassword=${GITHUB_TOKEN} -DpushChanges=true
+          mvn -B release:prepare release:perform \
+            -Darguments="-DskipTests" \
+            -DautoVersionSubmodules=true \
+            -DtagNameFormat=v@{project.version} \
+            -DreleaseProfiles=release
 
-      # The Maven Release Plugin pushes the tag, so you do not need a separate git push --tags step.
-
-      - name: Get final version (after release, should match tag)
-        id: final_version
+      # Maven release plugin pushed a new tag, so re-checkout that tag for pack/build.
+      - name: Determine the last release tag
+        id: get_tag
         run: |
-          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Final version: $VERSION"
+          TAG=$(git describe --abbrev=0 --tags)
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Package for release
-        run: mvn package -DskipTests
+      - name: Checkout new release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.get_tag.outputs.tag }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Locate artifact
-        id: jar
+      - name: Build Java modules (package)
+        run: mvn -B clean package -DskipTests
+
+      - name: Collect Java Artifacts
         run: |
-          JAR_PATH=$(find target -name "*.jar" | head -n 1)
-          echo "jar_path=$JAR_PATH" >> $GITHUB_OUTPUT
-          echo "Artifact path: $JAR_PATH"
+          cp mock-generator/target/mock-generator*.jar ./mock-generator.jar
+          cp flink-processor/target/flink-processor*.jar ./flink-processor.jar
+          cp backend-api/target/backend-api*.jar ./backend-api.jar
 
-      - name: Create GitHub Release
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Archive frontend dist
+        run: |
+          cd frontend/dist
+          zip -r ../../frontend-dist.zip .
+
+      - name: Create GitHub Release and Attach Artifacts
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ steps.final_version.outputs.version }}
-          name: Release v${{ steps.final_version.outputs.version }}
+          tag_name: ${{ steps.get_tag.outputs.tag }}
+          name: Release ${{ steps.get_tag.outputs.tag }}
           body: |
             ## Changes in this release
 
-            See the [CHANGELOG](https://github.com/drag0sd0g/realtime-stock-price-stream/compare/v${{ steps.final_version.outputs.version }}...main) for details.
+            See the [CHANGELOG](https://github.com/${{ github.repository }}/compare/${{ steps.get_tag.outputs.tag }}...main) for details.
 
             ## Installation
 
-            Download the JAR file below and run:
-            ```bash
-            java -jar $(basename ${{ steps.jar.outputs.jar_path }}) --help
-            ```
+            Download the backend, processor, generator, and frontend bundles below.
           files: |
-            ${{ steps.jar.outputs.jar_path }}
-          draft: false
-          prerelease: false
+            mock-generator.jar
+            flink-processor.jar
+            backend-api.jar
+            frontend-dist.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

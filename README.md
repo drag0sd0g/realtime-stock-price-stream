@@ -1,251 +1,239 @@
 # 📈 Real-Time Stock Price Streaming Platform
 
-A comprehensive real-time data streaming platform that demonstrates modern event-driven architecture using **Apache Kafka**, **Apache Flink**, and **Server-Sent Events (SSE)**. This project processes live stock price data through a complete streaming pipeline, from data generation to real-time visualization.
+A modern, production-grade real-time data streaming platform combining **Apache Kafka**, **Apache Flink**, **Spring Boot (SSE API)**, and a live **React** dashboard. This project demonstrates an end-to-end streaming architecture: from simulated (or real) stock market data, through tumbling window aggregation, to instant UI visualization.
+
+> **Note:**  
+> The current _mock generator_ simulates live stock price feeds.  
+> **It's designed for plug-and-play replacement** with any real-world market data (exchange, broker, REST, or WebSocket vendor feed).
+
+---
 
 ## 🏗️ Architecture Overview
 
 ```
 ┌─────────────────────┐
-│  Mock Generator     │  Generates mock stock prices (50 tech stocks)
-│  (Spring Boot)      │  Publishes every 500ms
+│  Mock Generator     │  • Simulated prices for 50 tech stocks, 500ms intervals
+│  (Spring Boot)      │  • (Replaceable with live market data feeds)
 └──────────┬──────────┘
            │
            ▼
 ┌─────────────────────┐
-│   Apache Kafka      │  Topic: stock-prices
-│   (KRaft Mode)      │  High-throughput message broker
+│   Apache Kafka      │  • KRaft mode (no Zookeeper)
 └──────────┬──────────┘
            │
            ▼
 ┌─────────────────────┐
-│   Flink Processor   │  5-second tumbling windows
-│   (Stream API)      │  Aggregation: min/max/avg per symbol
+│   Flink Processor   │  • Tumbling event-time windows (default: 10s)
+│   (Java/Flink)      │  • Aggregates per symbol (avg, min, max, count)
 └──────────┬──────────┘
            │
            ▼
 ┌─────────────────────┐
-│   Apache Kafka      │  Topic: stock-prices-aggregated
-│                     │  Aggregated metrics
+│   Apache Kafka      │  • Aggregated topic: "stock-prices-aggregated"
 └──────────┬──────────┘
            │
            ▼
 ┌─────────────────────┐
-│   Backend API       │  Consumes aggregated data
-│   (Spring Boot)     │  Exposes SSE endpoint
+│   Backend API       │  • Consumes aggregates, SSE endpoint: /api/stocks/stream
+│   (Spring Boot)     │  • Multi-client, efficient server-push to frontend
 └──────────┬──────────┘
            │
            ▼
 ┌─────────────────────┐
-│   React Frontend    │  Real-time dashboard
-│   (TypeScript)      │  Live charts & updates
+│   React Frontend    │  • Real-time dashboard (Vite/TS)
+│                     │  • Live grid, connection status, auto-refresh
 └─────────────────────┘
 ```
 
+---
+
 ## 🚀 Features
 
-- **Real-Time Data Processing**: Sub-second latency from generation to visualization
-- **Event-Driven Architecture**: Fully decoupled microservices communicating via Kafka
-- **Stream Processing**: Windowed aggregations using Apache Flink
-- **Server-Sent Events (SSE)**: Efficient server-to-client streaming
-- **Scalable Infrastructure**: Containerized with Docker Compose
-- **Modern Tech Stack**: Java 21, Spring Boot 3.2, Flink 1.19, React 18
-- **50 Tech Stocks**: Real-time simulation of major tech companies (AAPL, MSFT, GOOGL, NVDA, etc.)
+- **End-to-End Real-Time:** Millisecond-latency pipeline from feed → dashboard
+- **Pluggable Data Source:** Swap out simulated prices for true live equity/ticker feeds anytime
+- **Event-Driven Microservices:** All parts communicate asynchronously over Kafka
+- **Stream Aggregation with Flink:** Tumbling windows, min/max/avg/count per symbol
+- **Production SSE Streaming:** Scalable, minimal-latency server-push with backpressure
+- **Live Interactive UI:** React (TS) dashboard, auto updates, connection health
+- **One-Command Dev Orchestration:** All-in-one startup (dev.sh), Docker Compose infra, or classic mode
+
+---
 
 ## 📦 Tech Stack
 
 ### Infrastructure
 
-- **Apache Kafka 7.6.0** (KRaft mode - no Zookeeper!)
-- **Apache Flink 1.19.1** (Stream processing)
+- **Apache Kafka 7.6.0** (KRaft mode)
+- **Apache Flink 1.19.1**
 - **Docker & Docker Compose**
 
 ### Backend
 
-- **Java 21** (LTS)
+- **Java 17** (LTS)
 - **Spring Boot 3.2.0**
 - **Spring Kafka**
 - **Maven**
 
 ### Frontend
 
-- **React 18**
-- **TypeScript**
-- **Vite**
-- **Recharts** (for visualization)
+- **React 18** + **TypeScript** + **Vite**
+- **Recharts** (for live charts)
+
+---
 
 ## 🏁 Quick Start
 
 ### Prerequisites
 
-- **Docker Desktop** (for Mac/Windows) or **Docker Engine** (for Linux)
-- **Java 21** ([Download here](https://adoptium.net/))
-- **Maven 3.9+** ([Download here](https://maven.apache.org/download.cgi))
-- **Node.js 18+** ([Download here](https://nodejs.org/))
+- [Docker Desktop](https://docs.docker.com/desktop/) or **Docker Engine** (for Linux)
+- **Java 17** ([Download](https://adoptium.net/))
+- **Maven 3.9+** ([Download](https://maven.apache.org/download.cgi))
+- **Node.js 18+** ([Download](https://nodejs.org/))
 
-### 1️⃣ Start Infrastructure (Kafka + Flink)
+---
+
+### 1️⃣ Start All Services With a Single Command
+
+**(Recommended for devs):**
 
 ```bash
-# Clone the repository
 git clone https://github.com/drag0sd0g/realtime-stock-price-stream.git
 cd realtime-stock-price-stream
 
-# Start Kafka and Flink
-docker-compose up -d
-
-# Verify containers are running
-docker ps
+# Build everything & spin up all microservices/infrastructure
+./dev.sh up
 ```
 
-You should see 3 containers running:
+- **Flink UI:** http://localhost:8081
+- **React Dashboard:** http://localhost:5173
 
-- `kafka` on port 9092
-- `flink-jobmanager` on port 8081
-- `flink-taskmanager`
-
-**Access Flink Web UI**: http://localhost:8081
-
-### 2️⃣ Run Mock Stock Price Generator
+**To stop:**
 
 ```bash
-# Navigate to mock generator
-cd mock-generator
+./dev.sh down
+```
 
-# Build and run
+#### Manual mode for each component
+
+<details>
+<summary>Expand for detailed manual commands</summary>
+
+#### Start Kafka/Flink infrastructure
+
+```bash
+docker-compose up -d
+```
+
+#### Mock Price Generator (Spring Boot)
+
+```bash
+cd mock-generator
 mvn clean install
 mvn spring-boot:run
 ```
 
-The generator will start publishing stock prices for **50 tech companies** to Kafka topic `stock-prices` every 500ms.
-
-**Stocks included**: AAPL, MSFT, GOOGL, AMZN, NVDA, META, TSLA, AVGO, ORCL, ADBE, CRM, CSCO, ACN, INTC, AMD, IBM, INTU, NOW, QCOM, TXN, AMAT, PANW, MU, ADI, LRCX, KLAC, SNPS, CDNS, MCHP, NXPI, COIN, SQ, SHOP, SNOW, DDOG, ZS, CRWD, NET, OKTA, TEAM, SPLK, MDB, WDAY, ZM, DOCU, TWLO, UBER, LYFT, DASH, ABNB
-
-**Verify it's working**:
+#### Flink Job (run locally or on Flink cluster)
 
 ```bash
-docker exec -it kafka kafka-console-consumer \
-  --bootstrap-server localhost:9092 \
-  --topic stock-prices \
-  --from-beginning
-```
-
-### 3️⃣ Run Flink Stream Processor
-
-**Option A: Run Locally (for development)**
-
-```bash
-# Navigate to Flink processor
 cd flink-processor
-
-# Build the project
 mvn clean package
 
-# Run locally
+# Local Java (dev)
 mvn exec:java -Dexec.mainClass="com.dragos.stockstream.processor.StockStreamProcessor"
+
+# On Flink cluster
+docker cp target/flink-processor-*.jar flink-jobmanager:/opt/flink/usrlib/
+docker exec -it flink-jobmanager flink run /opt/flink/usrlib/flink-processor-*.jar
 ```
 
-**Option B: Submit to Flink Cluster (production-like)**
-
-```bash
-# Build the JAR
-cd flink-processor
-mvn clean package
-
-# Copy JAR to Flink JobManager
-docker cp target/flink-processor-1.0-SNAPSHOT.jar flink-jobmanager:/opt/flink/usrlib/
-
-# Submit job to Flink
-docker exec -it flink-jobmanager flink run /opt/flink/usrlib/flink-processor-1.0-SNAPSHOT.jar
-```
-
-**Monitor the job**: http://localhost:8081
-
-The processor will:
-
-- Consume from `stock-prices` topic
-- Apply **5-second tumbling windows**
-- Calculate **min, max, avg** price per symbol
-- Publish aggregates to `stock-prices-aggregated` topic
-
-**Verify aggregated data**:
-
-```bash
-docker exec -it kafka kafka-console-consumer \
-  --bootstrap-server localhost:9092 \
-  --topic stock-prices-aggregated \
-  --from-beginning
-```
-
-### 4️⃣ Run Backend API (Coming Soon)
+#### Backend API (Spring Boot, SSE)
 
 ```bash
 cd backend-api
 mvn clean install
 mvn spring-boot:run
+# API at http://localhost:8080
 ```
 
-Backend will expose SSE endpoint at: `http://localhost:8080/api/stocks/stream`
-
-### 5️⃣ Run React Frontend (Coming Soon)
+#### React Frontend
 
 ```bash
 cd frontend
 npm install
 npm run dev
+# UI at http://localhost:5173
 ```
 
-Frontend will be available at: `http://localhost:5173`
+</details>
+
+---
+
+### 2️⃣ Explore & Verify
+
+**Raw Stock Data**
+
+```bash
+docker exec -it kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic stock-prices --from-beginning
+```
+
+**Aggregated Output**
+
+```bash
+docker exec -it kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic stock-prices-aggregated --from-beginning
+```
+
+**REST/SSE Stream**
+
+```bash
+curl http://localhost:8080/api/stocks/stream
+```
+
+**Live UI:**  
+Visit [http://localhost:5173](http://localhost:5173) — connection status ("Live") means end-to-end is streaming.
+
+---
 
 ## 📂 Project Structure
 
 ```
 realtime-stock-price-stream/
-├── docker-compose.yml              # Infrastructure setup
-├── pom.xml                         # Parent POM
-├── mock-generator/                 # Stock price generator
-│   ├── pom.xml
-│   └── src/main/java/com/dragos/stockstream/generator/
-│       ├── MockGeneratorApplication.java
-│       ├── model/
-│       │   └── StockPrice.java
-│       ├── service/
-│       │   └── StockPriceGeneratorService.java
-│       └── config/
-│           └── KafkaProducerConfig.java
-├── flink-processor/                # Stream processing
-│   ├── pom.xml
-│   └── src/main/java/com/dragos/stockstream/processor/
-│       ├── StockStreamProcessor.java
-│       ├── model/
-│       │   ├── StockPrice.java
-│       │   └── StockPriceAggregate.java
-│       ├── serialization/
-│       │   ├── StockPriceDeserializationSchema.java
-│       │   └── StockPriceAggregateSerializationSchema.java
-│       └── functions/
-│           └── StockPriceAggregator.java
-├── backend-api/                    # Spring Boot API (Coming Soon)
-│   └── ...
-└── frontend/                       # React UI (Coming Soon)
-    └── ...
+├── docker-compose.yml     # Infra config
+├── dev.sh                 # Orchestrator script (local dev)
+├── mock-generator/        # (Replaceable) stock price source
+├── flink-processor/       # Flink: streaming job
+├── backend-api/           # Spring Boot: API/SSE/kafka consumer
+└── frontend/              # React dashboard
 ```
+
+---
 
 ## 🔧 Configuration
 
 ### Kafka Topics
 
-- **`stock-prices`**: Raw stock price events (50 stocks, 500ms interval)
-- **`stock-prices-aggregated`**: Windowed aggregations (5-second windows)
+- **stock-prices:** Raw tick data
+- **stock-prices-aggregated:** Windowed aggregates
 
-### Flink Configuration
+### Flink
 
-- **Parallelism**: 1 (optimized for development on M1 Mac 8GB RAM)
-- **Window Type**: Tumbling Event Time Windows (5 seconds)
-- **Watermark Strategy**: 5-second bounded out-of-orderness
-- **Checkpointing**: Disabled (enable for production)
+- **Window:** Tumbling, event-time (default: 10s, adjustable)
+- **Watermark:** 5s out-of-orderness
+- **Parallelism:** 1 (dev mode, adjust for prod)
 
-## 📊 Data Flow Example
+---
 
-**Raw Stock Price (from Generator)**:
+## ℹ️ Swapping the Mock Generator for Real Market Data
+
+The `mock-generator` module is a fully decoupled microservice that **only depends on Kafka**.
+
+- **To join real data:** replace/mock out its stock feed code with your streaming or polling code (REST, WebSocket, vendor-provided SDK, etc.)
+- The rest of the pipeline (Kafka, Flink, backend, UI) just works without code changes.
+
+---
+
+## 📊 Data Example
+
+**Mock Generator Output (`stock-prices`):**
 
 ```json
 {
@@ -257,7 +245,7 @@ realtime-stock-price-stream/
 }
 ```
 
-**Aggregated Stock Price (from Flink)**:
+**Flink Aggregate Output (`stock-prices-aggregated`):**
 
 ```json
 {
@@ -267,47 +255,24 @@ realtime-stock-price-stream/
   "maxPrice": 182.67,
   "count": 10,
   "windowStart": "2025-11-15T14:29:30Z",
-  "windowEnd": "2025-11-15T14:29:35Z"
+  "windowEnd": "2025-11-15T14:29:40Z"
 }
 ```
 
-## 🛠️ Development
+---
 
-### Build All Modules
+## 🛠️ Developer Docs
+
+### Build All
 
 ```bash
 mvn clean install
 ```
 
-### Run Tests
+### Run Tests for a Module
 
 ```bash
-mvn test
-```
-
-## 🧪 Testing
-
-This project includes a comprehensive test suite covering unit tests, integration tests, and end-to-end scenarios.
-
-### Run All Tests
-
-```bash
-mvn test
-```
-
-### Run Tests for Specific Module
-
-```bash
-# Mock Generator tests
-cd mock-generator
-mvn test
-
-# Flink Processor tests
-cd flink-processor
-mvn test
-
-# Backend API tests
-cd backend-api
+# In module dir (e.g., backend-api)
 mvn test
 ```
 
@@ -315,87 +280,70 @@ mvn test
 
 ```bash
 mvn jacoco:report
-# Open target/site/jacoco/index.html in browser
 ```
 
-### Test Coverage Goals
+Open `target/site/jacoco/index.html` for the report.
 
-- **Unit Tests**: 80%+ coverage
-- **Integration Tests**: Cover all critical paths
-- **End-to-End Tests**: Complete pipeline validation
-
-### Test Structure
-
-- **Mock Generator Tests**: Test data generation, Kafka production, and scheduling
-- **Flink Processor Tests**: Test aggregation functions, serialization/deserialization
-- **Backend API Tests**: Test SSE streaming, Kafka consumption, and REST endpoints
-
-### CI/CD Pipeline
-
-Tests are automatically run on every push and pull request via GitHub Actions. The pipeline includes:
-- Building all modules
-- Running all tests
-- Generating coverage reports
-- Publishing test results
-
-### Clean Docker Resources
+### Clean Docker State
 
 ```bash
 docker-compose down -v
 docker system prune -a
 ```
 
-### Troubleshooting
+---
 
-**Kafka won't start:**
+## 🧪 Troubleshooting
 
-```bash
-docker-compose down -v
-docker-compose up -d
-docker logs kafka
-```
-
-**Flink job failed:**
-
-- Check logs: `docker logs flink-jobmanager`
-- Verify Kafka is running: `docker ps`
-- Check Flink Web UI: http://localhost:8081
-
-## 🎯 Learning Objectives
-
-This project demonstrates:
-
-1. **Event-Driven Microservices**: Decoupled services communicating via Kafka
-2. **Stream Processing**: Real-time aggregation with Apache Flink
-3. **Windowing Concepts**: Tumbling, sliding, and session windows
-4. **Event Time Processing**: Handling out-of-order events with watermarks
-5. **Server-Sent Events (SSE)**: Efficient server-to-client streaming
-6. **Docker Orchestration**: Multi-container application setup
-7. **Modern Java**: Java 21 features, Spring Boot 3, reactive programming
-8. **Real-Time Visualization**: Building responsive dashboards with React
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 👨‍💻 Author
-
-**Dragos** ([@drag0sd0g](https://github.com/drag0sd0g))
-
-Built with ☕ and passion for real-time data streaming!
-
-## 🔗 Useful Links
-
-- [Apache Kafka Documentation](https://kafka.apache.org/documentation/)
-- [Apache Flink Documentation](https://flink.apache.org/docs/stable/)
-- [Spring Kafka Reference](https://spring.io/projects/spring-kafka)
-- [React Documentation](https://react.dev/)
-- [Server-Sent Events (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
+- **Kafka/infra won’t start:**
+  ```bash
+  docker-compose down -v
+  docker-compose up -d
+  docker logs kafka
+  ```
+- **Flink job failed:**  
+  Check: `docker logs flink-jobmanager`, [Flink Web UI](http://localhost:8081)
+- **No data on UI:**
+  - Try `/api/stocks/stream` in browser/curl
+  - Check Chrome Console & Network tab for errors/event delivery
+  - Check backend logs for deserialization errors or Kafka disconnects
 
 ---
 
-**⭐ If you find this project useful, please consider giving it a star!**
+## 🎯 What You'll Learn
+
+- Microservices via events: async, decoupled with Kafka
+- Stream processing and windowing in Apache Flink
+- Real-time dashboards and web event streaming (SSE)
+- Infrastructure-as-code for local dev
+- Making simulated pipelines ready for real data sources
+
+---
+
+## 🤝 Contributing
+
+All PRs and suggestions welcome!  
+If you find it useful, star ⭐ the repo.
+
+---
+
+## 📝 License
+
+MIT License — [LICENSE](LICENSE)
+
+---
+
+## 👨‍💻 Author
+
+[@drag0sd0g](https://github.com/drag0sd0g)  
+Built with ☕ and a love of data streaming.
+
+---
+
+## 🔗 Useful Links
+
+- [Apache Kafka Docs](https://kafka.apache.org/documentation/)
+- [Apache Flink Docs](https://flink.apache.org/docs/stable/)
+- [Spring Kafka](https://spring.io/projects/spring-kafka)
+- [React](https://react.dev/)
+- [SSE (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)

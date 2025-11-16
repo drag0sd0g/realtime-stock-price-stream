@@ -1,15 +1,5 @@
 #!/bin/bash
 
-###############################################################################
-# dev.sh -- Local Development Orchestrator for Real-Time Stock Price Stream
-#
-# Usage:
-#   ./dev.sh up     # Build and start all components + infra
-#   ./dev.sh down   # Stop all components and dependent infra
-#
-# Requirements: docker, docker-compose, Java 21+, Maven, Node.js 18+, nc, lsof
-###############################################################################
-
 API_DIR="backend-api"
 MOCK_GEN_DIR="mock-generator"
 FLINK_PROC_DIR="flink-processor"
@@ -38,11 +28,32 @@ build_fat_jars() {
   mvn -B clean package -DskipTests
 }
 
-start_infra() {
-  echo "🚀 Starting infrastructure with docker-compose..."
-  docker-compose up -d
-  echo "⌛ Waiting for Kafka ($KAFKA_PORT), Flink ($FLINK_JOBMANAGER_WEB_PORT) to be up..."
-  until check_port $KAFKA_PORT && check_port $FLINK_JOBMANAGER_WEB_PORT; do sleep 2; done
+start_kafka_and_create_topics() {
+  echo "🚀 Starting Kafka..."
+  docker-compose up -d kafka
+
+  echo "⌛ Waiting for Kafka container health..."
+  until [ "$(docker inspect -f '{{.State.Health.Status}}' kafka 2>/dev/null)" = "healthy" ]; do
+    sleep 2
+    echo "$(date '+%H:%M:%S') … waiting for kafka health…"
+  done
+  echo "✅ Kafka is healthy!"
+
+  echo "📚 Creating required Kafka topics (if not exist)..."
+  docker exec kafka kafka-topics --create --topic stock-prices --bootstrap-server kafka:29092 --partitions 1 --replication-factor 1 --if-not-exists
+  docker exec kafka kafka-topics --create --topic stock-prices-aggregated --bootstrap-server kafka:29092 --partitions 1 --replication-factor 1 --if-not-exists
+}
+
+start_flink_services() {
+  echo "🚀 Starting Flink JobManager and TaskManager..."
+  docker-compose up -d flink-jobmanager flink-taskmanager
+
+  echo "⌛ Waiting for Flink JM ($FLINK_JOBMANAGER_WEB_PORT) to be up..."
+  until check_port $FLINK_JOBMANAGER_WEB_PORT; do
+    sleep 2
+    echo "$(date '+%H:%M:%S') … waiting for Flink UI port…"
+  done
+  echo "✅ Flink JM is ready!"
 }
 
 start_api() {
@@ -84,8 +95,7 @@ submit_flink_job() {
   echo "🚚 Copying fat JAR into flink-jobmanager container..."
   docker cp "$FLINK_JAR" flink-jobmanager:/opt/flink/usrlib/"$FLINK_JAR_NAME" || { echo "❌ JAR copy failed!"; down; exit 1; }
   echo "🚀 Submitting Flink job to cluster: $FLINK_JAR_NAME"
-  # IMPORTANT: Use correct Kafka bootstrap server for Docker network!
-  docker exec -e KAFKA_BOOTSTRAP_SERVERS=kafka:29092 -i flink-jobmanager flink run /opt/flink/usrlib/"$FLINK_JAR_NAME"
+  docker exec -e KAFKA_BOOTSTRAP_SERVERS=kafka:29092 -i flink-jobmanager flink run -d /opt/flink/usrlib/"$FLINK_JAR_NAME"
   if [ $? -ne 0 ]; then
     echo "❌ Flink job submission failed!"
     down
@@ -115,7 +125,6 @@ stop_process() {
     local pid=$(cat "$pidfile")
     if kill -0 "$pid" 2>/dev/null; then
       kill "$pid" 2>/dev/null
-      # If not dead instantly, force kill
       sleep 1
       if kill -0 "$pid" 2>/dev/null; then
         kill -9 "$pid"
@@ -139,7 +148,8 @@ down() {
 
 up() {
   build_fat_jars
-  start_infra
+  start_kafka_and_create_topics
+  start_flink_services
   start_api
   start_frontend
   submit_flink_job
@@ -149,14 +159,9 @@ up() {
   echo "✅ All services are up!"
   echo ""
   echo "To stop all: ./dev.sh down OR press Ctrl+C (safely cleans up)"
-
-  # WAIT LOOP - needs to hang until user hits Ctrl+C
-  while true; do
-    sleep 10
-  done
+  while true; do sleep 10; done
 }
 
-# Trap Ctrl+C and exit signals to perform cleanup while script is running
 trap 'echo ""; echo "Caught interrupt. Tearing down..."; down; exit 130' SIGINT SIGTERM
 
 case "$1" in

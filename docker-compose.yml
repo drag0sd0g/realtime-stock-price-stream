@@ -21,7 +21,6 @@ services:
       KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
-    # Use tmpfs instead of volume to avoid permission issues on macOS
     tmpfs:
       - /tmp/kraft-combined-logs
     healthcheck:
